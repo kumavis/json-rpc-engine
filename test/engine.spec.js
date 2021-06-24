@@ -386,8 +386,10 @@ describe('JsonRpcEngine', function () {
       });
     });
 
-    engine.push(function (_req, _res, next, _end) {
+    // Async middleware function
+    engine.push(async function (_req, _res, next, _end) {
       events.push('2-next');
+      await delay();
       next(function (cb) {
         events.push('2-return');
         cb();
@@ -427,6 +429,31 @@ describe('JsonRpcEngine', function () {
 
     engine.push(function (_req, _res, _next, end) {
       end(new Error('boom'));
+    });
+
+    const payload = { id: 1, jsonrpc: '2.0', method: 'hello' };
+
+    engine.handle(payload, (err, _res) => {
+      assert.ok(err, 'did error');
+      assert.ok(sawNextReturnHandlerCalled, 'saw next return handler called');
+      done();
+    });
+  });
+
+  it('calls back next handler even if async middleware rejects', function (done) {
+    const engine = new JsonRpcEngine();
+
+    let sawNextReturnHandlerCalled = false;
+
+    engine.push(function (_req, _res, next, _end) {
+      next(function (cb) {
+        sawNextReturnHandlerCalled = true;
+        cb();
+      });
+    });
+
+    engine.push(async function (_req, _res, _next, _end) {
+      throw new Error('boom');
     });
 
     const payload = { id: 1, jsonrpc: '2.0', method: 'hello' };
@@ -506,3 +533,9 @@ describe('JsonRpcEngine', function () {
     }
   });
 });
+
+function delay(ms = 1) {
+  return new Promise((resolve) => {
+    setTimeout(() => resolve(), ms);
+  });
+}
